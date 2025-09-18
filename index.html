@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<title>Doğum Günü Oyunu</title>
+<style>
+  body,html{margin:0;padding:0;height:100%;overflow:hidden;font-family:sans-serif;background:#000;}
+  canvas{background:#fce4ec;display:none;width:100%;height:100%;}
+  .screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#ffe6f0;}
+  button{padding:12px 24px;margin:10px;font-size:18px;border:none;border-radius:8px;background:#ff6699;color:#fff;cursor:pointer;}
+  button:hover{background:#ff3366;}
+
+  #giftVideoScreen,#failVideoScreen{
+    position:absolute;inset:0;background:rgba(0,0,0,0.85);
+    display:none;z-index:200;align-items:center;justify-content:center;flex-direction:column;
+  }
+  #giftVideoScreen video,#failVideoScreen video{
+    max-width:80%;max-height:80%;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.5);
+  }
+  #failVideoScreen button{margin-top:20px;}
+
+  #cakeScreen{position:absolute;inset:0;background:#fff0f6;display:none;flex-direction:column;align-items:center;justify-content:center;}
+  #cake{width:300px;height:200px;background:pink;border-radius:20px;position:relative;margin-bottom:20px;}
+  .candle{width:10px;height:40px;background:yellow;position:absolute;top:-40px;cursor:pointer;}
+  .flame{width:14px;height:14px;background:orange;border-radius:50%;position:absolute;top:-14px;left:-2px;animation:flicker 0.5s infinite;}
+  @keyframes flicker{0%{opacity:1;}50%{opacity:0.5;}100%{opacity:1;}}
+
+  #fullPhoto{position:absolute;inset:0;background:rgba(0,0,0,0.9);display:none;align-items:center;justify-content:center;z-index:400;}
+  #fullPhoto img{max-width:90%;max-height:90%;}
+</style>
+</head>
+<body>
+
+<div id="startScreen" class="screen">
+  <h1>🎂 Doğum Günün Kutlu Olsun 🎂</h1>
+  <button onclick="startGame()">Başlat</button>
+</div>
+
+<div id="charScreen" class="screen" style="display:none;">
+  <h2>Karakter Seç</h2>
+  <div>
+    <button onclick="selectChar('char_bebik.png')">BEBİK</button>
+    <button onclick="selectChar('char_drake.png')">EVİMİN DRAKE'I</button>
+    <button onclick="selectChar('char_bizziko.png')">BIZZIKO</button>
+  </div>
+</div>
+
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+
+<!-- Hediye videoları -->
+<div id="giftVideoScreen">
+  <video id="giftVideo" autoplay></video>
+</div>
+
+<!-- Patlıcan videosu -->
+<div id="failVideoScreen">
+  <video id="failVideo" src="assets/failVideo.mp4" controls></video>
+  <button onclick="restartGame()">Yeniden Başla</button>
+</div>
+
+<!-- Pasta ekranı -->
+<div id="cakeScreen">
+  <h2>🎉 Tebrikler 50 Kalp! 🎉</h2>
+  <div id="cake"></div>
+</div>
+
+<!-- Fotoğraf tam ekran -->
+<div id="fullPhoto" onclick="this.style.display='none'"><img src=""></div>
+
+<audio id="bgMusic" src="assets/bgMusic.mp3" loop></audio>
+
+<script>
+const canvas=document.getElementById("gameCanvas");
+const ctx=canvas.getContext("2d");
+const startScreen=document.getElementById("startScreen");
+const charScreen=document.getElementById("charScreen");
+const giftVideoScreen=document.getElementById("giftVideoScreen");
+const giftVideo=document.getElementById("giftVideo");
+const failVideoScreen=document.getElementById("failVideoScreen");
+const cakeScreen=document.getElementById("cakeScreen");
+const fullPhoto=document.getElementById("fullPhoto");
+const fullPhotoImg=document.querySelector("#fullPhoto img");
+const bgMusic=document.getElementById("bgMusic");
+
+let state={playing:false,player:null,objects:[],hearts:0};
+
+function startGame(){
+  startScreen.style.display="none";
+  charScreen.style.display="flex";
+  bgMusic.play();
+}
+
+function selectChar(img){
+  charScreen.style.display="none";
+  state.player={img:new Image(),x:canvas.width/2-50,y:canvas.height-150};
+  state.player.img.src="assets/"+img;
+  state.playing=true; state.hearts=0; state.objects=[];
+  canvas.style.display="block";
+  loop();
+}
+
+function drawPlayer(){
+  if(state.player){
+    ctx.drawImage(state.player.img,state.player.x,state.player.y,100,100);
+  }
+}
+
+function loop(){
+  if(!state.playing)return;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  if(Math.random()<0.02){
+    let obj={type:Math.random()<0.8?"heart":"eggplant",x:Math.random()*(canvas.width-40),y:0};
+    state.objects.push(obj);
+  }
+
+  for(let o of state.objects){
+    o.y+=2;
+    let img=new Image();
+    img.src="assets/"+(o.type==="heart"?"heart.png":"eggplant.png");
+    ctx.drawImage(img,o.x,o.y,40,40);
+
+    if(state.player && Math.abs(o.x-state.player.x)<50 && Math.abs(o.y-state.player.y)<50){
+      if(o.type==="heart"){
+        state.hearts++;
+      } else {
+        state.playing=false;
+        canvas.style.display="none";
+        failVideoScreen.style.display="flex";
+        document.getElementById("failVideo").play();
+      }
+      o.collected=true;
+    }
+  }
+  state.objects=state.objects.filter(o=>!o.collected);
+
+  drawPlayer();
+  requestAnimationFrame(loop);
+}
+
+// 📱 Swipe kontrol
+let touchStartX=null;
+canvas.addEventListener("touchstart",e=>{
+  touchStartX=e.touches[0].clientX;
+});
+canvas.addEventListener("touchmove",e=>{
+  if(!state.player || touchStartX===null) return;
+  let currentX=e.touches[0].clientX;
+  let diff=currentX-touchStartX;
+  state.player.x += diff*0.2; // hassasiyet
+  touchStartX=currentX;
+
+  // Kenar kontrolü
+  if(state.player.x<0) state.player.x=0;
+  if(state.player.x>canvas.width-100) state.player.x=canvas.width-100;
+});
+canvas.addEventListener("touchend",()=>{ touchStartX=null; });
+
+function restartGame(){
+  failVideoScreen.style.display="none";
+  charScreen.style.display="flex";
+  state.playing=false; state.objects=[]; state.hearts=0;
+  bgMusic.currentTime=0; bgMusic.play();
+}
+</script>
+</body>
+</html>
